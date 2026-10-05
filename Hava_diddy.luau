@@ -1,7 +1,8 @@
 --[[
-    Hava-lib v3.0
-    تصميم Rayfield + كل الميزات
-    Author: You
+    Hava-lib v4.0
+    - بدون ZIndex نهائياً
+    - حل مشكلة الزر العائم (يُنشأ أخيراً)
+    - كل الميزات: Slider, ColorPicker, List, Paragraph, EnableToggle...
 ]]
 
 local Library = {}
@@ -12,7 +13,7 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService     = game:GetService("TweenService")
 local LocalPlayer      = Players.LocalPlayer
 
--- ========== الثيم ==========
+-- ================= الثيم =================
 Library.Theme = {
     Background = Color3.fromRGB(20, 20, 25),
     Sidebar    = Color3.fromRGB(15, 15, 20),
@@ -31,7 +32,7 @@ Library.Theme = {
     FontBold   = Enum.Font.GothamBold,
 }
 
--- ========== مساعدات ==========
+-- ================= مساعدات =================
 local function create(class, props)
     local i = Instance.new(class)
     for k, v in pairs(props or {}) do i[k] = v end
@@ -55,14 +56,14 @@ local function tween(o, t, p, s)
     TweenService:Create(o, TweenInfo.new(t or 0.18, s or Enum.EasingStyle.Quart), p):Play()
 end
 
--- ========== إنشاء النافذة ==========
+-- ================= إنشاء النافذة =================
 function Library.new(cfg)
     cfg = cfg or {}
     local self = setmetatable({}, Library)
     self.Title     = cfg.Title or "Hava-lib"
-    self.Subtitle  = cfg.Subtitle or "v3.0"
+    self.Subtitle  = cfg.Subtitle or "v4.0"
     self.Icon      = cfg.Icon or "⚡"
-    self.Size      = cfg.Size or UDim2.new(0, 480, 0, 300)
+    self.Size      = cfg.Size or UDim2.new(0, 480, 0, 320)
     self.Open      = false
     self.Enabled   = true
     self.Tabs      = {}
@@ -73,85 +74,22 @@ function Library.new(cfg)
     self.ScreenGui = create("ScreenGui", {
         Name = "HavaLib",
         ResetOnSpawn = false,
-        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,  -- الترتيب الطبيعي
         IgnoreGuiInset = true,
-        DisplayOrder = 999,
+        DisplayOrder = 2147483647,                      -- أعلى من كل شيء
+        Enabled = true,
         Parent = LocalPlayer:WaitForChild("PlayerGui")
     })
 
-    self:_createToggle()
+    -- ⚠️ الترتيب مهم: النافذة أولاً، ثم الزر العائم أخيراً
     self:_createWindow()
+    self:_createToggle()  -- 🎯 الزر يُنشأ آخراً ⇒ يظهر دائماً فوق النافذة
     self:_bindHotkey()
+
     return self
 end
 
--- ========== زر الفتح العائم ==========
-function Library:_createToggle()
-    local btn = create("TextButton", {
-        Name = "Toggle",
-        Size = UDim2.new(0, 46, 0, 46),
-        Position = UDim2.new(0, 15, 0.5, -23),
-        BackgroundColor3 = Library.Theme.Background,
-        Text = "",
-        AutoButtonColor = false,
-        Active = true,
-        BorderSizePixel = 0,
-        Parent = self.ScreenGui
-    })
-    corner(btn, 23)
-    stroke(btn, Library.Theme.Accent, 2)
-
-    create("TextLabel", {
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Text = self.Icon,
-        TextColor3 = Library.Theme.Accent,
-        TextSize = 22,
-        Font = Library.Theme.FontBold,
-        Parent = btn
-    })
-
-    -- سحب مع تمييز النقر
-    local dragging, moved = false, false
-    local dragStart, startPos
-
-    btn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            moved = false
-            dragStart = input.Position
-            startPos = btn.Position
-        end
-    end)
-
-    btn.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
-        or input.UserInputType == Enum.UserInputType.Touch) then
-            local d = input.Position - dragStart
-            if math.abs(d.X) > 4 or math.abs(d.Y) > 4 then moved = true end
-            btn.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + d.X,
-                startPos.Y.Scale, startPos.Y.Offset + d.Y
-            )
-        end
-    end)
-
-    btn.Activated:Connect(function()
-        if not moved then self:Toggle() end
-    end)
-
-    self.ToggleBtn = btn
-end
-
--- ========== النافذة الرئيسية ==========
+-- ================= النافذة الرئيسية =================
 function Library:_createWindow()
     local win = create("Frame", {
         Name = "Window",
@@ -160,7 +98,6 @@ function Library:_createWindow()
         BackgroundColor3 = Library.Theme.Background,
         BorderSizePixel = 0,
         Visible = false,
-        ClipsDescendants = false,
         Active = true,
         Parent = self.ScreenGui
     })
@@ -178,16 +115,18 @@ function Library:_createWindow()
         Parent = win
     })
     corner(sidebar, 10)
+    -- غطاء لإخفاء الزوايا الدائرية من اليمين
     create("Frame", {
-        Size = UDim2.new(0, 12, 1, 0),
-        Position = UDim2.new(1, -12, 0, 0),
+        Size = UDim2.new(0, 14, 1, 0),
+        Position = UDim2.new(1, -14, 0, 0),
         BackgroundColor3 = Library.Theme.Sidebar,
         BorderSizePixel = 0,
         Parent = sidebar
     })
 
-    -- ترويسة جانبية
+    -- ترويسة جانبية (قابلة للسحب)
     local header = create("Frame", {
+        Name = "Header",
         Size = UDim2.new(1, 0, 0, 60),
         BackgroundTransparency = 1,
         Active = true,
@@ -268,16 +207,14 @@ function Library:_createWindow()
         TextSize = 12,
         Font = Library.Theme.FontBold,
         BorderSizePixel = 0,
-        ZIndex = 10,
         Active = true,
         Parent = win
     })
     corner(closeBtn, 11)
     closeBtn.Activated:Connect(function() self:Close() end)
 
-    -- سحب من الترويسة
-    local dragging = false
-    local dragStart, startPos
+    -- السحب من الترويسة
+    local dragging, dragStart, startPos = false, nil, nil
     header.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
@@ -304,7 +241,90 @@ function Library:_createWindow()
     end)
 end
 
--- ========== اختصار لوحة المفاتيح ==========
+-- ================= الزر العائم (يُنشأ أخيراً) =================
+function Library:_createToggle()
+    local btn = create("TextButton", {
+        Name = "Toggle",
+        Size = UDim2.new(0, 55, 0, 55),
+        Position = UDim2.new(0, 20, 0.5, -27),
+        BackgroundColor3 = Library.Theme.Background,
+        Text = "",
+        AutoButtonColor = false,
+        Active = true,
+        Selectable = true,
+        BorderSizePixel = 0,
+        Parent = self.ScreenGui
+    })
+    corner(btn, 27)
+    stroke(btn, Library.Theme.Accent, 2)
+
+    local icon = create("TextLabel", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = self.Icon,
+        TextColor3 = Library.Theme.Accent,
+        TextSize = 26,
+        Font = Library.Theme.FontBold,
+        Parent = btn
+    })
+
+    -- نبضة لجذب الانتباه
+    task.spawn(function()
+        while btn.Parent do
+            tween(icon, 1.4, { TextTransparency = 0.35 })
+            task.wait(1.4)
+            tween(icon, 1.4, { TextTransparency = 0 })
+            task.wait(1.4)
+        end
+    end)
+
+    -- سحب + نقر ذكي
+    local dragging, moved = false, false
+    local dragStart, startPos
+    local THRESHOLD = 8
+
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            moved = false
+            dragStart = input.Position
+            startPos = btn.Position
+            tween(btn, 0.1, { Size = UDim2.new(0, 50, 0, 50), Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + 2, startPos.Y.Scale, startPos.Y.Offset + 2) })
+        end
+    end)
+
+    btn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+            tween(btn, 0.1, { Size = UDim2.new(0, 55, 0, 55) })
+            if not moved then
+                self:Toggle()
+            end
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch) then
+            local d = input.Position - dragStart
+            if math.abs(d.X) > THRESHOLD or math.abs(d.Y) > THRESHOLD then
+                moved = true
+            end
+            if moved then
+                btn.Position = UDim2.new(
+                    startPos.X.Scale, startPos.X.Offset + d.X,
+                    startPos.Y.Scale, startPos.Y.Offset + d.Y
+                )
+            end
+        end
+    end)
+
+    self.ToggleBtn = btn
+end
+
+-- ================= اختصار لوحة المفاتيح =================
 function Library:_bindHotkey()
     UserInputService.InputBegan:Connect(function(input, gp)
         if gp then return end
@@ -314,7 +334,7 @@ function Library:_bindHotkey()
     end)
 end
 
--- ========== فتح / إغلاق ==========
+-- ================= فتح/إغلاق =================
 function Library:Open()
     self.Open = true
     self.Window.Visible = true
@@ -332,19 +352,16 @@ function Library:Toggle()
     if self.Open then self:Close() else self:Open() end
 end
 
--- ========== تعطيل/تفعيل كل العناصر ==========
+-- ================= تفعيل/تعطيل الكل =================
 function Library:SetEnabled(state)
     self.Enabled = state
     for _, el in ipairs(self.Elements) do
         if el.SetEnabled then el.SetEnabled(state) end
     end
-    -- تحديث الزر الرئيسي
-    if self.MasterBtn then
-        self.MasterBtn.Set(state)
-    end
+    if self.MasterBtn then self.MasterBtn.Set(state) end
 end
 
--- ========== تبويب ==========
+-- ================= تبويب =================
 function Library:AddTab(name, icon)
     local tab = { Name = name, Elements = {}, Enabled = true }
 
@@ -381,9 +398,7 @@ function Library:AddTab(name, icon)
         Parent = btn
     })
 
-    tab.Button = btn
-    tab.Label = lbl
-    tab.Indicator = indicator
+    tab.Button, tab.Label, tab.Indicator = btn, lbl, indicator
 
     local page = create("Frame", {
         Size = UDim2.new(1, 0, 0, 0),
@@ -428,9 +443,9 @@ function Library:SelectTab(tab)
     self.CurrentTab = tab
 end
 
--- ========== قسم ==========
+-- ================= عناصر =================
 function Library:AddSection(tab, text)
-    local l = create("TextLabel", {
+    return create("TextLabel", {
         Size = UDim2.new(1, 0, 0, 20),
         BackgroundTransparency = 1,
         Text = text:upper(),
@@ -440,11 +455,8 @@ function Library:AddSection(tab, text)
         TextXAlignment = Enum.TextXAlignment.Left,
         Parent = tab.Page
     })
-    table.insert(self.Elements, { SetEnabled = function() end })
-    return l
 end
 
--- ========== نص بسيط ==========
 function Library:AddLabel(tab, text)
     local lbl = create("TextLabel", {
         Size = UDim2.new(1, 0, 0, 20),
@@ -461,7 +473,6 @@ function Library:AddLabel(tab, text)
     return lbl
 end
 
--- ========== فقرة نصية ==========
 function Library:AddParagraph(tab, title, text)
     local container = create("Frame", {
         Size = UDim2.new(1, 0, 0, 0),
@@ -478,7 +489,7 @@ function Library:AddParagraph(tab, title, text)
         PaddingRight = UDim.new(0, 10),
         Parent = container
     })
-
+    local offsetY = 0
     if title then
         create("TextLabel", {
             Size = UDim2.new(1, 0, 0, 16),
@@ -490,11 +501,11 @@ function Library:AddParagraph(tab, title, text)
             TextXAlignment = Enum.TextXAlignment.Left,
             Parent = container
         })
+        offsetY = 18
     end
-
     create("TextLabel", {
         Size = UDim2.new(1, 0, 0, 0),
-        Position = UDim2.new(0, 0, 0, title and 18 or 0),
+        Position = UDim2.new(0, 0, 0, offsetY),
         BackgroundTransparency = 1,
         Text = text,
         TextColor3 = Library.Theme.SubText,
@@ -506,11 +517,9 @@ function Library:AddParagraph(tab, title, text)
         AutomaticSize = Enum.AutomaticSize.Y,
         Parent = container
     })
-
     return container
 end
 
--- ========== فاصل ==========
 function Library:AddDivider(tab)
     return create("Frame", {
         Size = UDim2.new(1, 0, 0, 1),
@@ -520,9 +529,11 @@ function Library:AddDivider(tab)
     })
 end
 
--- ========== زر تبديل عادي ==========
+-- ================= Toggle =================
 function Library:AddToggle(tab, label, default, callback)
     local state = default or false
+    local el = { enabled = true }
+
     local container = create("Frame", {
         Size = UDim2.new(1, 0, 0, 28),
         BackgroundColor3 = Library.Theme.Card,
@@ -569,8 +580,6 @@ function Library:AddToggle(tab, label, default, callback)
         Parent = container
     })
 
-    local el = { enabled = true }
-
     hit.Activated:Connect(function()
         if not el.enabled then return end
         state = not state
@@ -589,26 +598,28 @@ function Library:AddToggle(tab, label, default, callback)
         el.enabled = s
         container.BackgroundTransparency = s and 0 or 0.5
     end
+    el.Get = function() return state end
 
     table.insert(self.Elements, el)
     return el
 end
 
--- ========== زر تفعيل/تعطيل رئيسي ==========
+-- ================= Enable Toggle (زر تفعيل الكل) =================
 function Library:AddEnableToggle(tab, label, default, callback)
-    local state = default or false
+    local state = default ~= false
+    local el = { enabled = true }
+
     local container = create("Frame", {
-        Size = UDim2.new(1, 0, 0, 32),
+        Size = UDim2.new(1, 0, 0, 34),
         BackgroundColor3 = state and Library.Theme.Success or Library.Theme.Danger,
         BorderSizePixel = 0,
         Parent = tab.Page
     })
     corner(container, 6)
-    tween(container, 0.2, { BackgroundColor3 = state and Library.Theme.Success or Library.Theme.Danger })
 
     local lbl = create("TextLabel", {
         Size = UDim2.new(1, -20, 1, 0),
-        Position = UDim2.new(0, 10, 0, 0),
+        Position = UDim2.new(0, 12, 0, 0),
         BackgroundTransparency = 1,
         Text = (state and "✅  " or "⛔  ") .. label,
         TextColor3 = Library.Theme.Text,
@@ -630,33 +641,21 @@ function Library:AddEnableToggle(tab, label, default, callback)
         state = not state
         container.BackgroundColor3 = state and Library.Theme.Success or Library.Theme.Danger
         lbl.Text = (state and "✅  " or "⛔  ") .. label
-        -- تعطيل/تفعيل باقي العناصر
         self:SetEnabled(state)
         if callback then callback(state) end
     end)
 
-    -- تسجيله كزر رئيسي
-    if not self.MasterBtn then
-        self.MasterBtn = {
-            Set = function(v)
-                state = v
-                container.BackgroundColor3 = state and Library.Theme.Success or Library.Theme.Danger
-                lbl.Text = (state and "✅  " or "⛔  ") .. label
-            end
-        }
+    el.Set = function(v)
+        state = v
+        container.BackgroundColor3 = state and Library.Theme.Success or Library.Theme.Danger
+        lbl.Text = (state and "✅  " or "⛔  ") .. label
     end
 
-    return {
-        Set = function(v)
-            state = v
-            container.BackgroundColor3 = state and Library.Theme.Success or Library.Theme.Danger
-            lbl.Text = (state and "✅  " or "⛔  ") .. label
-            if callback then callback(state) end
-        end
-    }
+    if not self.MasterBtn then self.MasterBtn = el end
+    return el
 end
 
--- ========== Dropdown ==========
+-- ================= Dropdown =================
 function Library:AddDropdown(tab, label, options, default, callback)
     local current = default or options[1]
     local expanded = false
@@ -667,7 +666,6 @@ function Library:AddDropdown(tab, label, options, default, callback)
         BackgroundColor3 = Library.Theme.Card,
         BorderSizePixel = 0,
         ClipsDescendants = true,
-        ZIndex = 2,
         Parent = tab.Page
     })
     corner(container, 6)
@@ -693,7 +691,6 @@ function Library:AddDropdown(tab, label, options, default, callback)
         TextSize = 11,
         Font = Library.Theme.Font,
         BorderSizePixel = 0,
-        ZIndex = 3,
         Active = true,
         Parent = container
     })
@@ -705,7 +702,6 @@ function Library:AddDropdown(tab, label, options, default, callback)
         BackgroundColor3 = Library.Theme.Element,
         BorderSizePixel = 0,
         Visible = false,
-        ZIndex = 4,
         Parent = container
     })
     corner(listFrame, 4)
@@ -745,7 +741,6 @@ function Library:AddDropdown(tab, label, options, default, callback)
             Font = Library.Theme.Font,
             BorderSizePixel = 0,
             LayoutOrder = i,
-            ZIndex = 5,
             Active = true,
             Parent = listFrame
         })
@@ -776,12 +771,13 @@ function Library:AddDropdown(tab, label, options, default, callback)
         el.enabled = s
         container.BackgroundTransparency = s and 0 or 0.5
     end
+    el.Get = function() return current end
 
     table.insert(self.Elements, el)
     return el
 end
 
--- ========== Input ==========
+-- ================= Input =================
 function Library:AddInput(tab, label, default, isNumber, callback)
     local el = { enabled = true }
     local container = create("Frame", {
@@ -834,23 +830,20 @@ function Library:AddInput(tab, label, default, isNumber, callback)
         end
     end)
 
-    el.Set = function(v)
-        box.Text = tostring(v)
-        if callback then callback(v) end
-    end
+    el.Set = function(v) box.Text = tostring(v); if callback then callback(v) end end
     el.SetEnabled = function(s)
         el.enabled = s
         container.BackgroundTransparency = s and 0 or 0.5
     end
+    el.Get = function() return box.Text end
 
     table.insert(self.Elements, el)
     return el
 end
 
--- ========== Slider ==========
+-- ================= Slider =================
 function Library:AddSlider(tab, label, min, max, default, callback)
-    min = min or 0
-    max = max or 100
+    min, max = min or 0, max or 100
     local value = default or min
     local el = { enabled = true }
 
@@ -862,7 +855,7 @@ function Library:AddSlider(tab, label, min, max, default, callback)
     })
     corner(container, 6)
 
-    local lbl = create("TextLabel", {
+    create("TextLabel", {
         Size = UDim2.new(0.7, 0, 0, 16),
         Position = UDim2.new(0, 10, 0, 6),
         BackgroundTransparency = 1,
@@ -909,17 +902,14 @@ function Library:AddSlider(tab, label, min, max, default, callback)
         Position = UDim2.new((value - min) / (max - min), -6, 0.5, -6),
         BackgroundColor3 = Library.Theme.Text,
         BorderSizePixel = 0,
-        ZIndex = 2,
         Parent = barBg
     })
     corner(knob, 6)
 
     local dragging = false
-
     local function updateFromX(x)
         local rel = math.clamp((x - barBg.AbsolutePosition.X) / barBg.AbsoluteSize.X, 0, 1)
-        local newValue = math.floor(min + (max - min) * rel + 0.5)
-        value = newValue
+        value = math.floor(min + (max - min) * rel + 0.5)
         valLbl.Text = tostring(value)
         fill.Size = UDim2.new(rel, 0, 1, 0)
         knob.Position = UDim2.new(rel, -6, 0.5, -6)
@@ -934,14 +924,12 @@ function Library:AddSlider(tab, label, min, max, default, callback)
             updateFromX(input.Position.X)
         end
     end)
-
     UserInputService.InputChanged:Connect(function(input)
         if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
         or input.UserInputType == Enum.UserInputType.Touch) then
             updateFromX(input.Position.X)
         end
     end)
-
     UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
@@ -961,12 +949,13 @@ function Library:AddSlider(tab, label, min, max, default, callback)
         el.enabled = s
         container.BackgroundTransparency = s and 0 or 0.5
     end
+    el.Get = function() return value end
 
     table.insert(self.Elements, el)
     return el
 end
 
--- ========== Color Picker ==========
+-- ================= Color Picker =================
 function Library:AddColorPicker(tab, label, default, callback)
     local color = default or Color3.fromRGB(138, 43, 226)
     local el = { enabled = true }
@@ -975,6 +964,7 @@ function Library:AddColorPicker(tab, label, default, callback)
         Size = UDim2.new(1, 0, 0, 60),
         BackgroundColor3 = Library.Theme.Card,
         BorderSizePixel = 0,
+        ClipsDescendants = true,
         Parent = tab.Page
     })
     corner(container, 6)
@@ -1002,13 +992,11 @@ function Library:AddColorPicker(tab, label, default, callback)
     corner(preview, 4)
     stroke(preview, Library.Theme.Stroke, 1)
 
-    local expanded = false
     local panel = create("Frame", {
         Size = UDim2.new(1, -20, 0, 0),
         Position = UDim2.new(0, 10, 0, 52),
         BackgroundColor3 = Library.Theme.Element,
         BorderSizePixel = 0,
-        ClipsDescendants = true,
         Visible = false,
         Parent = container
     })
@@ -1026,7 +1014,6 @@ function Library:AddColorPicker(tab, label, default, callback)
         Parent = panel
     })
 
-    -- قنوات RGB
     local channels = {}
     for i, ch in ipairs({"R", "G", "B"}) do
         local row = create("Frame", {
@@ -1057,17 +1044,15 @@ function Library:AddColorPicker(tab, label, default, callback)
                        or (ch == "G" and Color3.new(0,1,0))
                        or Color3.new(0,0,1)
         local f = create("Frame", {
-            Size = UDim2.new((color[ch] or 0), 0, 1, 0),
+            Size = UDim2.new(color[ch] or 0, 0, 1, 0),
             BackgroundColor3 = fillColor,
             BorderSizePixel = 0,
             Parent = bg
         })
         corner(f, 3)
-
-        channels[ch] = { bg = bg, fill = f, value = color[ch] or 0 }
+        channels[ch] = { bg = bg, fill = f, value = color[ch] or 0, color = fillColor }
     end
 
-    -- Hex
     local hexRow = create("Frame", {
         Size = UDim2.new(1, 0, 0, 20),
         BackgroundTransparency = 1,
@@ -1077,8 +1062,7 @@ function Library:AddColorPicker(tab, label, default, callback)
     local hexBox = create("TextBox", {
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundColor3 = Library.Theme.Background,
-        Text = string.format("#%02X%02X%02X",
-            color.R * 255, color.G * 255, color.B * 255),
+        Text = string.format("#%02X%02X%02X", color.R * 255, color.G * 255, color.B * 255),
         TextColor3 = Library.Theme.Text,
         TextSize = 11,
         Font = Library.Theme.Font,
@@ -1096,40 +1080,33 @@ function Library:AddColorPicker(tab, label, default, callback)
             data.value = newColor[ch]
             data.fill.Size = UDim2.new(newColor[ch], 0, 1, 0)
         end
-        hexBox.Text = string.format("#%02X%02X%02X",
-            newColor.R * 255, newColor.G * 255, newColor.B * 255)
+        hexBox.Text = string.format("#%02X%02X%02X", newColor.R * 255, newColor.G * 255, newColor.B * 255)
         if callback then callback(newColor) end
     end
 
-    -- ربط RGB sliders
-    for ch, data in pairs(channels) do
+    for _, data in pairs(channels) do
         local drag = false
+        local function update(x)
+            local rel = math.clamp((x - data.bg.AbsolutePosition.X) / data.bg.AbsoluteSize.X, 0, 1)
+            data.value = rel
+            data.fill.Size = UDim2.new(rel, 0, 1, 0)
+            applyColor(Color3.new(channels.R.value, channels.G.value, channels.B.value))
+        end
         data.bg.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1
             or input.UserInputType == Enum.UserInputType.Touch then
-                drag = true
-                local rel = math.clamp((input.Position.X - data.bg.AbsolutePosition.X)
-                    / data.bg.AbsoluteSize.X, 0, 1)
-                data.value = rel
-                data.fill.Size = UDim2.new(rel, 0, 1, 0)
-                applyColor(Color3.new(channels.R.value, channels.G.value, channels.B.value))
+                drag = true; update(input.Position.X)
             end
         end)
         UserInputService.InputChanged:Connect(function(input)
             if drag and (input.UserInputType == Enum.UserInputType.MouseMovement
             or input.UserInputType == Enum.UserInputType.Touch) then
-                local rel = math.clamp((input.Position.X - data.bg.AbsolutePosition.X)
-                    / data.bg.AbsoluteSize.X, 0, 1)
-                data.value = rel
-                data.fill.Size = UDim2.new(rel, 0, 1, 0)
-                applyColor(Color3.new(channels.R.value, channels.G.value, channels.B.value))
+                update(input.Position.X)
             end
         end)
         UserInputService.InputEnded:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
-                drag = false
-            end
+            or input.UserInputType == Enum.UserInputType.Touch then drag = false end
         end)
     end
 
@@ -1141,11 +1118,11 @@ function Library:AddColorPicker(tab, label, default, callback)
         if r and g and b then
             applyColor(Color3.fromRGB(r, g, b))
         else
-            hexBox.Text = string.format("#%02X%02X%02X",
-                color.R * 255, color.G * 255, color.B * 255)
+            hexBox.Text = string.format("#%02X%02X%02X", color.R * 255, color.G * 255, color.B * 255)
         end
     end)
 
+    local expanded = false
     preview.Activated:Connect(function()
         expanded = not expanded
         panel.Visible = expanded
@@ -1163,12 +1140,13 @@ function Library:AddColorPicker(tab, label, default, callback)
         el.enabled = s
         container.BackgroundTransparency = s and 0 or 0.5
     end
+    el.Get = function() return color end
 
     table.insert(self.Elements, el)
     return el
 end
 
--- ========== List (اختيار متعدد) ==========
+-- ================= List =================
 function Library:AddList(tab, label, options, defaultSelected, callback)
     local selected = defaultSelected or {}
     local el = { enabled = true }
@@ -1222,7 +1200,6 @@ function Library:AddList(tab, label, options, defaultSelected, callback)
         })
         corner(row, 3)
         buttons[opt] = row
-
         row.Activated:Connect(function()
             if not el.enabled then return end
             selected[opt] = not selected[opt]
@@ -1251,7 +1228,7 @@ function Library:AddList(tab, label, options, defaultSelected, callback)
     return el
 end
 
--- ========== Button (Command) ==========
+-- ================= Button =================
 function Library:AddButton(tab, label, callback, color)
     color = color or Library.Theme.Accent
     local el = { enabled = true }
